@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>灵动提醒 · 浮窗版</title>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --bg-body: #f5f5f7;
+            --card-bg: #ffffff;
+            --text-primary: #1c1c1e;
+            --text-secondary: #8e8e93;
+            --border-light: #e9e9ef;
+            --btn-blue: #007aff;
+            --btn-blue-active: #005fc1;
+            --danger: #ff3b30;
+            --danger-light: #ffeceb;
+            --overdue: #ff3b30;
+            --task-hover: #f9f9fb;
+            --shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+            --completed-bg: #f9f9fb;
+            --note-preview: #e9e9ef;
+        }
+
+        body.dark {
+            --bg-body: #000000;
+            --card-bg: #1c1c1e;
+            --text-primary: #ffffff;
+            --text-secondary: #8e8e93;
+            --border-light: #2c2c2e;
+            --btn-blue: #0a84ff;
+            --btn-blue-active: #0063ce;
+            --danger: #ff453a;
+            --danger-light: #3a2a2a;
+            --overdue: #ff453a;
+            --task-hover: #2c2c2e;
+            --shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+            --completed-bg: #2c2c2e;
+            --note-preview: #2c2c2e;
+        }
+
+        body {
+            background: var(--bg-body);
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, sans-serif;
+            padding: 54px 12px 32px;
+            max-width: 700px;
+            margin: 0 auto;
+            color: var(--text-primary);
+            transition: background 0.2s, color 0.2s;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        /* 自定义标题栏 */
+        .custom-titlebar {
+            -webkit-app-region: drag;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 40px;
+            background: var(--card-bg);
+            border-bottom: 0.5px solid var(--border-light);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 12px;
+            z-index: 1000;
+        }
+        .titlebar-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+            -webkit-app-region: drag;
+        }
+        .titlebar-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            -webkit-app-region: no-drag;
+        }
+        .titlebar-btn {
+            background: transparent;
+            border: none;
+            font-size: 15px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            transition: 0.2s;
+        }
+        .titlebar-btn:hover {
+            background: var(--task-hover);
+            color: var(--text-primary);
+        }
+        .close-btn:hover {
+            background: #ff3b30;
+            color: white;
+        }
+
+        /* 隐藏原有头部 */
+        .app-header {
+            display: none;
+        }
+
+        /* 以下全部为原有样式，完整保留 */
+        .groups-container { display: flex; flex-direction: column; gap: 16px; }
+        .group-card {
+            background: var(--card-bg);
+            border-radius: 24px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        .group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--card-bg);
+            border-bottom: 0.5px solid var(--border-light);
+            cursor: pointer;
+        }
+        .group-title {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 18px;
+            font-weight: 590;
+        }
+        .group-icon {
+            font-size: 22px;
+            cursor: pointer;
+            padding: 2px;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        .group-icon:hover { background: var(--task-hover); }
+        .group-name {
+            background: none;
+            border: none;
+            font-size: 18px;
+            font-weight: 590;
+            color: var(--text-primary);
+            padding: 2px 6px;
+            border-radius: 8px;
+            outline: none;
+        }
+        .group-name:focus { background: var(--task-hover); }
+        .group-actions { display: flex; gap: 8px; align-items: center; }
+        .group-actions button {
+            background: none;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 2px;
+            border-radius: 16px;
+        }
+        .group-actions button:hover { background: var(--task-hover); }
+        .collapse-icon {
+            transition: transform 0.2s;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .group-card.collapsed .collapse-icon { transform: rotate(-90deg); }
+        .group-card.collapsed .group-content { display: none; }
+        .group-content { padding: 6px 10px 10px 10px; }
+        .active-tasks-section { margin-bottom: 12px; }
+        .section-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            padding: 6px 2px 2px 2px;
+        }
+        .task-list {
+            list-style: none;
+            min-height: 30px;
+        }
+        .task-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 8px 8px;
+            background: var(--card-bg);
+            border-bottom: 0.5px solid var(--border-light);
+            transition: background 0.15s;
+            cursor: grab;
+        }
+        .task-item:active { cursor: grabbing; }
+        .task-item:hover { background: var(--task-hover); }
+        .sortable-drag { opacity: 0.5; background: var(--task-hover); }
+        .circle-check {
+            width: 20px;
+            height: 20px;
+            border-radius: 20px;
+            border: 1.5px solid #c6c6c8;
+            background: var(--card-bg);
+            cursor: pointer;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .circle-check.completed {
+            background: var(--btn-blue);
+            border-color: var(--btn-blue);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z'/%3E%3C/svg%3E");
+            background-size: 12px;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        .task-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+            flex-wrap: nowrap;
+        }
+        .task-text {
+            font-size: 15px;
+            word-break: break-word;
+            color: var(--text-primary);
+            flex: 1;
+            cursor: pointer;
+            padding: 2px 0;
+            min-width: 0;
+        }
+        .task-text[contenteditable="true"] {
+            cursor: text;
+            background: var(--task-hover);
+            border-radius: 6px;
+            padding: 2px 6px;
+        }
+        .task-text[contenteditable="true"]:focus { outline: none; }
+        .task-icons {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .due-date {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--task-hover);
+            padding: 2px 8px;
+            border-radius: 16px;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        .due-date.overdue {
+            color: var(--overdue);
+            background: rgba(255, 59, 48, 0.1);
+        }
+        .note-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--task-hover);
+            width: 28px;
+            height: 28px;
+            border-radius: 28px;
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text-secondary);
+            flex-shrink: 0;
+        }
+        .note-icon:hover { background: var(--border-light); }
+        .task-note-preview {
+            font-size: 12px;
+            color: var(--text-secondary);
+            background: var(--note-preview);
+            border-radius: 10px;
+            padding: 4px 8px;
+            margin-top: 2px;
+            word-break: break-word;
+            cursor: pointer;
+        }
+        .delete-btn {
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: var(--danger);
+            opacity: 0.5;
+            padding: 4px;
+            border-radius: 16px;
+            flex-shrink: 0;
+        }
+        .delete-btn:hover { opacity: 1; background: var(--danger-light); }
+        .completed-section {
+            margin-top: 8px;
+            border-top: 0.5px solid var(--border-light);
+        }
+        .completed-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 2px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .completed-header .arrow {
+            font-size: 10px;
+            transition: transform 0.2s;
+        }
+        .completed-section.collapsed .completed-header .arrow { transform: rotate(-90deg); }
+        .completed-section.collapsed .completed-list { display: none; }
+        .completed-list .task-item {
+            opacity: 0.7;
+            cursor: default;
+        }
+        .completed-list .task-item .task-text {
+            text-decoration: line-through;
+            color: var(--text-secondary);
+        }
+        .completed-list .task-item .circle-check {
+            background: var(--btn-blue);
+            border-color: var(--btn-blue);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z'/%3E%3C/svg%3E");
+            background-size: 12px;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        .empty-tip {
+            text-align: center;
+            padding: 16px;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+        .add-task-row {
+            display: flex;
+            gap: 6px;
+            margin-top: 12px;
+            padding: 6px 2px;
+        }
+        .add-task-input {
+            flex: 1;
+            background: var(--bg-body);
+            border: 1px solid var(--border-light);
+            padding: 8px 12px;
+            border-radius: 24px;
+            font-size: 13px;
+            color: var(--text-primary);
+        }
+        .add-task-input:focus { outline: none; border-color: var(--btn-blue); }
+        .add-task-btn {
+            background: var(--btn-blue);
+            border: none;
+            color: white;
+            width: 34px;
+            height: 34px;
+            border-radius: 34px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        .date-picker-btn {
+            background: var(--bg-body);
+            border: 1px solid var(--border-light);
+            border-radius: 24px;
+            padding: 0 10px;
+            font-size: 12px;
+            cursor: pointer;
+            color: var(--text-primary);
+        }
+        .add-group-btn {
+            background: var(--card-bg);
+            border: 1px dashed var(--border-light);
+            border-radius: 24px;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            color: var(--btn-blue);
+            font-weight: 500;
+            margin-top: 8px;
+            font-size: 13px;
+        }
+        .add-group-btn:hover { background: var(--task-hover); }
+        footer {
+            margin-top: 24px;
+            text-align: center;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+        .toast-msg {
+            position: fixed;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--text-primary);
+            color: var(--card-bg);
+            padding: 6px 16px;
+            border-radius: 30px;
+            font-size: 12px;
+            z-index: 1000;
+            opacity: 0;
+            transition: 0.2s;
+            pointer-events: none;
+        }
+        .toast-msg.show { opacity: 0.9; }
+    </style>
+</head>
+<body>
+<div class="custom-titlebar">
+    <div class="titlebar-left">
+        <span>✅ 灵动提醒</span>
+    </div>
+    <div class="titlebar-right">
+        <button class="titlebar-btn" id="titlebarDarkBtn">🌙</button>
+        <button class="titlebar-btn" id="titlebarExportBtn">📤</button>
+        <button class="titlebar-btn" id="titlebarImportBtn">📥</button>
+        <button class="titlebar-btn close-btn" id="closeBtn">✕</button>
+    </div>
+</div>
+
+<div class="toast-msg" id="toastMsg"></div>
+
+<div id="groupsContainer" class="groups-container"></div>
+<div class="add-group-btn" id="addGroupBtn">+ 新建分组</div>
+<footer>✨ 新任务自动添加今日截止日期 · 点击日期可修改 · 备注图标固定右侧</footer>
+
+<script>
+    // 暴露的 Electron API（由 preload.js 提供）
+    const { electronAPI } = window;
+    if (electronAPI && electronAPI.closeWindow) {
+        document.getElementById('closeBtn').addEventListener('click', () => {
+            electronAPI.closeWindow();
+        });
+    } else {
+        // 调试环境降级：如果没有 Electron，则 alert
+        document.getElementById('closeBtn').addEventListener('click', () => {
+            window.close();
+        });
+    }
+
+    // 辅助函数
+    function genId() { return Date.now() + '-' + Math.random().toString(36).substr(2, 8); }
+    function getCurrentDate() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+    function formatDueDate(dueDate) {
+        if (!dueDate) return '无日期';
+        return dueDate.slice(0, 10);
+    }
+
+    // 数据
+    let groups = [];
+    const defaultGroups = [
+        { id: 'work', name: '工作', icon: '💼', tasks: [
+            { id: genId(), text: '完成项目报告', completed: false, dueDate: getCurrentDate(), note: '需要准备PPT和数据' },
+            { id: genId(), text: '周会准备', completed: false, dueDate: '', note: '' }
+        ]},
+        { id: 'life', name: '生活', icon: '🏠', tasks: [
+            { id: genId(), text: '买牛奶', completed: false, dueDate: '', note: '记得买低脂的' },
+            { id: genId(), text: '健身', completed: true, dueDate: (() => { let d = new Date(); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); })(), note: '已完成打卡' }
+        ]}
+    ];
+
+    const STORAGE_GROUPS = 'smart_reminder_v10';
+    const STORAGE_COLLAPSE = 'groups_collapse_v10';
+    const STORAGE_COMPLETED_COLLAPSE = 'completed_collapse_v10';
+
+    let collapseState = {};
+    let completedCollapseState = {};
+
+    function saveGroups() { localStorage.setItem(STORAGE_GROUPS, JSON.stringify(groups)); }
+    function loadGroups() {
+        const stored = localStorage.getItem(STORAGE_GROUPS);
+        if (stored) {
+            try {
+                groups = JSON.parse(stored);
+                groups.forEach(g => {
+                    if (!g.icon) g.icon = '📌';
+                    g.tasks.forEach(t => { 
+                        if (t.dueDate === undefined) t.dueDate = '';
+                        if (t.note === undefined) t.note = '';
+                    });
+                });
+            } catch(e) { groups = JSON.parse(JSON.stringify(defaultGroups)); }
+        } else {
+            groups = JSON.parse(JSON.stringify(defaultGroups));
+        }
+    }
+    function saveCollapseState() { localStorage.setItem(STORAGE_COLLAPSE, JSON.stringify(collapseState)); }
+    function loadCollapseState() {
+        const stored = localStorage.getItem(STORAGE_COLLAPSE);
+        if (stored) try { collapseState = JSON.parse(stored); } catch(e) { collapseState = {}; }
+    }
+    function saveCompletedCollapseState() { localStorage.setItem(STORAGE_COMPLETED_COLLAPSE, JSON.stringify(completedCollapseState)); }
+    function loadCompletedCollapseState() {
+        const stored = localStorage.getItem(STORAGE_COMPLETED_COLLAPSE);
+        if (stored) try { completedCollapseState = JSON.parse(stored); } catch(e) { completedCollapseState = {}; }
+    }
+
+    function getSplitTasks(group) {
+        const active = group.tasks.filter(t => !t.completed);
+        const completed = group.tasks.filter(t => t.completed);
+        return { active, completed };
+    }
+
+    function editNote(task, groupId) {
+        let newNote = prompt("编辑备注", task.note || "");
+        if (newNote !== null) {
+            task.note = newNote;
+            saveGroups();
+            renderGroups();
+            showToast("备注已保存");
+        }
+    }
+
+    function createTaskElement(task, groupId, isCompletedSection = false) {
+        const li = document.createElement('li');
+        li.className = 'task-item';
+        li.dataset.id = task.id;
+
+        const circle = document.createElement('div');
+        circle.className = `circle-check ${task.completed ? 'completed' : ''}`;
+        circle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleComplete(groupId, task.id);
+        });
+
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'task-content';
+
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'task-header';
+
+        const textSpan = document.createElement('div');
+        textSpan.className = 'task-text';
+        textSpan.innerText = task.text;
+        textSpan.setAttribute('contenteditable', 'true');
+        textSpan.addEventListener('blur', (e) => {
+            const newText = e.target.innerText.trim();
+            if (newText && newText !== task.text) {
+                task.text = newText;
+                saveGroups();
+                showToast('已修改');
+                renderGroups();
+            } else if (!newText) {
+                e.target.innerText = task.text;
+            }
+        });
+        textSpan.addEventListener('keypress', (e) => { if(e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
+
+        const iconsDiv = document.createElement('div');
+        iconsDiv.className = 'task-icons';
+
+        const dueSpan = document.createElement('span');
+        dueSpan.className = 'due-date';
+        const dueDateStr = formatDueDate(task.dueDate);
+        const isOverdue = task.dueDate && new Date(task.dueDate.slice(0,10)) < new Date() && !task.completed;
+        if (isOverdue) dueSpan.classList.add('overdue');
+        dueSpan.innerHTML = `📅 ${dueDateStr}`;
+        dueSpan.addEventListener('click', (e) => {
+            e.stopPropagation();
+            let newDue = prompt("修改截止时间 (YYYY-MM-DD)", task.dueDate ? task.dueDate.slice(0,10) : '');
+            if (newDue !== null && newDue.trim()) {
+                if (/^\d{4}-\d{2}-\d{2}$/.test(newDue.trim())) {
+                    task.dueDate = newDue.trim();
+                    saveGroups();
+                    renderGroups();
+                } else {
+                    showToast("格式错误，请使用 YYYY-MM-DD");
+                }
+            }
+        });
+
+        const noteIcon = document.createElement('div');
+        noteIcon.className = 'note-icon';
+        noteIcon.innerHTML = task.note ? '💬' : '📝';
+        noteIcon.title = '编辑备注';
+        noteIcon.addEventListener('click', (e) => {
+            e.stopPropagation();
+            editNote(task, groupId);
+        });
+
+        iconsDiv.appendChild(dueSpan);
+        iconsDiv.appendChild(noteIcon);
+
+        headerDiv.appendChild(textSpan);
+        headerDiv.appendChild(iconsDiv);
+        contentDiv.appendChild(headerDiv);
+
+        if (task.note && task.note.trim() !== '') {
+            const notePreview = document.createElement('div');
+            notePreview.className = 'task-note-preview';
+            notePreview.innerText = task.note;
+            notePreview.addEventListener('click', (e) => {
+                e.stopPropagation();
+                editNote(task, groupId);
+            });
+            contentDiv.appendChild(notePreview);
+        }
+
+        const delBtn = document.createElement('button');
+        delBtn.innerText = '✕';
+        delBtn.className = 'delete-btn';
+        delBtn.addEventListener('click', () => deleteTask(groupId, task.id));
+
+        li.appendChild(circle);
+        li.appendChild(contentDiv);
+        li.appendChild(delBtn);
+        return li;
+    }
+
+    let activeSortableInstances = [];
+
+    function renderGroups() {
+        const container = document.getElementById('groupsContainer');
+        if (!container) return;
+        container.innerHTML = '';
+
+        groups.forEach((group, groupIdx) => {
+            const groupCard = document.createElement('div');
+            groupCard.className = 'group-card';
+            if (collapseState[group.id]) groupCard.classList.add('collapsed');
+
+            const header = document.createElement('div');
+            header.className = 'group-header';
+            const leftDiv = document.createElement('div');
+            leftDiv.className = 'group-title';
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'group-icon';
+            iconSpan.innerText = group.icon || '📌';
+            iconSpan.title = '点击修改图标';
+            iconSpan.addEventListener('click', (e) => {
+                e.stopPropagation();
+                let newIcon = prompt('请输入新的分组图标 (emoji或文字)', group.icon || '📌');
+                if (newIcon && newIcon.trim()) {
+                    group.icon = newIcon.trim();
+                    saveGroups();
+                    renderGroups();
+                    showToast('图标已更新');
+                }
+            });
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'group-name';
+            nameSpan.innerText = group.name;
+            nameSpan.setAttribute('contenteditable', 'true');
+            nameSpan.addEventListener('blur', (e) => {
+                let newName = e.target.innerText.trim();
+                if (newName) group.name = newName;
+                else e.target.innerText = group.name;
+                saveGroups();
+            });
+            nameSpan.addEventListener('keypress', (e) => { if(e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
+            leftDiv.appendChild(iconSpan);
+            leftDiv.appendChild(nameSpan);
+
+            const rightDiv = document.createElement('div');
+            rightDiv.className = 'group-actions';
+            const delGroupBtn = document.createElement('button');
+            delGroupBtn.innerText = '🗑️';
+            delGroupBtn.title = '删除分组';
+            delGroupBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (confirm(`确定删除分组“${group.name}”及其所有任务吗？`)) {
+                    groups = groups.filter(g => g.id !== group.id);
+                    delete collapseState[group.id];
+                    delete completedCollapseState[group.id];
+                    saveGroups();
+                    saveCollapseState();
+                    saveCompletedCollapseState();
+                    renderGroups();
+                    showToast(`已删除分组“${group.name}”`);
+                }
+            });
+            const collapseSpan = document.createElement('span');
+            collapseSpan.className = 'collapse-icon';
+            collapseSpan.innerText = '▼';
+            rightDiv.appendChild(delGroupBtn);
+            rightDiv.appendChild(collapseSpan);
+            header.appendChild(leftDiv);
+            header.appendChild(rightDiv);
+
+            header.addEventListener('click', (e) => {
+                if (e.target === delGroupBtn || delGroupBtn.contains(e.target)) return;
+                if (e.target === iconSpan || iconSpan.contains(e.target)) return;
+                if (e.target === nameSpan || nameSpan.contains(e.target)) return;
+                groupCard.classList.toggle('collapsed');
+                collapseState[group.id] = groupCard.classList.contains('collapsed');
+                saveCollapseState();
+            });
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'group-content';
+
+            const { active, completed } = getSplitTasks(group);
+
+            const activeSection = document.createElement('div');
+            activeSection.className = 'active-tasks-section';
+            const activeTitle = document.createElement('div');
+            activeTitle.className = 'section-title';
+            activeTitle.innerText = `待办 · ${active.length}`;
+            const activeList = document.createElement('ul');
+            activeList.className = 'task-list';
+            activeList.dataset.groupId = group.id;
+            active.forEach(task => {
+                activeList.appendChild(createTaskElement(task, group.id, false));
+            });
+            activeSection.appendChild(activeTitle);
+            activeSection.appendChild(activeList);
+
+            const completedSection = document.createElement('div');
+            completedSection.className = 'completed-section';
+            if (completedCollapseState[group.id] === true) completedSection.classList.add('collapsed');
+            const completedHeader = document.createElement('div');
+            completedHeader.className = 'completed-header';
+            completedHeader.innerHTML = `<span class="arrow">▼</span> <span>已完成 · ${completed.length}</span>`;
+            completedHeader.addEventListener('click', (e) => {
+                e.stopPropagation();
+                completedSection.classList.toggle('collapsed');
+                completedCollapseState[group.id] = completedSection.classList.contains('collapsed');
+                saveCompletedCollapseState();
+            });
+            const completedList = document.createElement('ul');
+            completedList.className = 'completed-list';
+            completed.forEach(task => {
+                completedList.appendChild(createTaskElement(task, group.id, true));
+            });
+            completedSection.appendChild(completedHeader);
+            completedSection.appendChild(completedList);
+
+            const addRow = document.createElement('div');
+            addRow.className = 'add-task-row';
+            addRow.innerHTML = `
+                <input type="text" placeholder="新任务..." class="add-task-input" data-group="${group.id}">
+                <button class="add-task-btn" data-group="${group.id}">+</button>
+                <button class="date-picker-btn" data-group="${group.id}">📅 设时间</button>
+            `;
+            const taskInput = addRow.querySelector('.add-task-input');
+            const addBtn = addRow.querySelector('.add-task-btn');
+            const dateBtn = addRow.querySelector('.date-picker-btn');
+            let pendingDue = '';
+
+            function addNewTaskWithAutoDate(groupId, text, manualDue) {
+                const group = groups.find(g => g.id === groupId);
+                if (group) {
+                    let due = manualDue;
+                    if (!due) {
+                        due = getCurrentDate();
+                    }
+                    const newTask = { id: genId(), text, completed: false, dueDate: due, note: '' };
+                    group.tasks.push(newTask);
+                    saveGroups();
+                    renderGroups();
+                    showToast('已添加（截止日期：' + due + '）');
+                }
+            }
+
+            addBtn.addEventListener('click', () => {
+                const text = taskInput.value.trim();
+                if (!text) return;
+                addNewTaskWithAutoDate(group.id, text, pendingDue);
+                taskInput.value = '';
+                pendingDue = '';
+                dateBtn.innerText = '📅 设时间';
+            });
+            taskInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') addBtn.click(); });
+            dateBtn.addEventListener('click', () => {
+                let dt = prompt("请输入截止时间 (YYYY-MM-DD)", pendingDue || '');
+                if (dt && dt.trim()) {
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(dt.trim())) {
+                        pendingDue = dt.trim();
+                        dateBtn.innerText = `📅 ${pendingDue.slice(5)}`;
+                    } else {
+                        showToast("格式错误，请使用 YYYY-MM-DD");
+                    }
+                } else {
+                    pendingDue = '';
+                    dateBtn.innerText = '📅 设时间';
+                }
+            });
+
+            contentDiv.appendChild(activeSection);
+            if (completed.length > 0) contentDiv.appendChild(completedSection);
+            else {
+                const emptyCompleted = document.createElement('div');
+                emptyCompleted.className = 'empty-tip';
+                emptyCompleted.innerText = '✨ 暂无已完成任务';
+                contentDiv.appendChild(emptyCompleted);
+            }
+            contentDiv.appendChild(addRow);
+            groupCard.appendChild(header);
+            groupCard.appendChild(contentDiv);
+            container.appendChild(groupCard);
+
+            if (activeSortableInstances[groupIdx]) activeSortableInstances[groupIdx].destroy();
+            if (active.length > 0) {
+                const sortable = new Sortable(activeList, {
+                    animation: 200,
+                    handle: '.task-item',
+                    draggable: '.task-item',
+                    onEnd: (evt) => {
+                        const oldIndex = evt.oldIndex;
+                        const newIndex = evt.newIndex;
+                        if (oldIndex !== newIndex) {
+                            const activeTasks = group.tasks.filter(t => !t.completed);
+                            const movedTask = activeTasks.splice(oldIndex, 1)[0];
+                            activeTasks.splice(newIndex, 0, movedTask);
+                            const newTasks = [...activeTasks, ...group.tasks.filter(t => t.completed)];
+                            group.tasks = newTasks;
+                            saveGroups();
+                            renderGroups();
+                        }
+                    }
+                });
+                activeSortableInstances[groupIdx] = sortable;
+            } else {
+                activeSortableInstances[groupIdx] = null;
+            }
+        });
+
+        document.getElementById('addGroupBtn').style.display = 'block';
+    }
+
+    function toggleComplete(groupId, taskId) {
+        const group = groups.find(g => g.id === groupId);
+        if (group) {
+            const task = group.tasks.find(t => t.id === taskId);
+            if (task) {
+                task.completed = !task.completed;
+                saveGroups();
+                renderGroups();
+                showToast(task.completed ? '已完成，已折叠' : '已恢复待办');
+            }
+        }
+    }
+
+    function deleteTask(groupId, taskId) {
+        const group = groups.find(g => g.id === groupId);
+        if (group) {
+            group.tasks = group.tasks.filter(t => t.id !== taskId);
+            saveGroups();
+            renderGroups();
+            showToast('已删除');
+        }
+    }
+
+    function addGroup() {
+        let name = prompt('请输入分组名称', '新分组');
+        if (!name) return;
+        name = name.trim();
+        if (name === '') return;
+        const newGroup = { id: genId(), name, icon: '📁', tasks: [] };
+        groups.push(newGroup);
+        saveGroups();
+        renderGroups();
+        showToast(`分组“${name}”已创建`);
+    }
+
+    function exportData() {
+        const dataStr = JSON.stringify(groups, null, 2);
+        const blob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `reminder_backup_${new Date().toISOString().slice(0,19)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('已导出备份');
+    }
+
+    function importData() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'application/json';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const imported = JSON.parse(ev.target.result);
+                    if (Array.isArray(imported) && imported.every(g => g.id && g.name && Array.isArray(g.tasks))) {
+                        groups = imported;
+                        groups.forEach(g => { 
+                            if (!g.icon) g.icon = '📌';
+                            g.tasks.forEach(t => { if (t.note === undefined) t.note = ''; });
+                        });
+                        saveGroups();
+                        renderGroups();
+                        showToast('导入成功');
+                    } else showToast('文件格式错误');
+                } catch(ex) { showToast('解析失败'); }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    }
+
+    function initDarkMode() {
+        const isDark = localStorage.getItem('darkMode') === 'true';
+        if (isDark) document.body.classList.add('dark');
+    }
+    function showToast(msg) {
+        const toast = document.getElementById('toastMsg');
+        toast.innerText = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    // 标题栏按钮绑定
+    function bindTitlebarButtons() {
+        const darkBtn = document.getElementById('titlebarDarkBtn');
+        if (darkBtn) {
+            darkBtn.addEventListener('click', () => {
+                document.body.classList.toggle('dark');
+                localStorage.setItem('darkMode', document.body.classList.contains('dark'));
+            });
+        }
+        const exportBtn = document.getElementById('titlebarExportBtn');
+        if (exportBtn) exportBtn.addEventListener('click', () => exportData());
+        const importBtn = document.getElementById('titlebarImportBtn');
+        if (importBtn) importBtn.addEventListener('click', () => importData());
+    }
+
+    function init() {
+        loadGroups();
+        loadCollapseState();
+        loadCompletedCollapseState();
+        initDarkMode();
+        bindTitlebarButtons();
+        renderGroups();
+        document.getElementById('addGroupBtn').addEventListener('click', addGroup);
+    }
+    init();
+</script>
+</body>
+</html>
